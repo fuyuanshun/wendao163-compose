@@ -12,9 +12,15 @@ docker compose ps
 docker compose run --rm --no-deps setup admin
 ```
 
-游戏一线显示 `healthy` 后，打开本机后台 `http://127.0.0.1:18888`，使用最后一条命令给出的管理员信息登录。在「账号与元宝」注册游戏账号，然后用现有的 1.63 客户端登录。默认登录端口为 `18101`，一线端口为 `18160`。局域网连接方式见压缩包内的 README。
+游戏一线显示 `healthy` 后，打开本机后台 `http://127.0.0.1:18888`，使用最后一条命令给出的管理员信息登录。在「账号与元宝」注册游戏账号，然后通过 1.63 客户端登录。默认登录端口为 `18101`，一线端口为 `18160`。局域网连接方式见压缩包内的 README。
 
-已有安装可在原目录更新包内文件并重新执行 `docker compose up -d --build`。已有账号、角色和配置存放在原 Compose 项目的命名卷里。
+已有安装可在原目录更新包内文件并重新执行 `docker compose up -d --build`。已有账号、角色和配置存放在原 Compose 项目的命名卷里。升级后执行一次 `docker compose exec mysql bash /entry/install-full-flight.sh`，为旧卷启用一键大飞。
+
+## Windows 客户端
+
+客户端是同一 Release 下的可选分卷。把全部 `wendao163-windows.7z.*` 下载到同一目录，用 7-Zip 打开 `.001` 解压。双击 `Start-Client.cmd`，默认连接本机 `127.0.0.1:18101`。与组合包放在同一父目录时，启动器会读取组合包 `.env` 的地址和端口。
+
+Windows 和 Docker 在不同电脑上时，先把服务端的 `SERVER_PUBLIC_IP` 设成 Windows 能访问的 IPv4，并开放登录端口和一线端口。再把客户端里的 `server.env.example` 另存为 `server.env`，填写同一个地址和登录端口。
 
 ## 后台管理功能
 
@@ -38,9 +44,9 @@ docker compose run --rm --no-deps setup admin
 
 ![ETC 配置页面，显示可编辑配置目录和用途索引](docs/screenshots/etc-configuration.png)
 
-### 角色与发货
+### 角色管理
 
-查询角色，通过同版目录分类筛选并搜索物品、宠物和坐骑，选择后按对应规则发放。后台也提供账号与元宝、好友亲密度、公告及操作记录等常用管理入口。
+选中角色后可在同一页切换角色属性、已有宠物、任务管理、日常重置、好友亲密度和物品发放。任务管理支持一键补齐前置并完成大飞，已成婴角色沿用现有元婴或血婴。物品发放可以分类搜索装备、物品、宠物和坐骑。
 
 ![角色发货的目录选择窗口，显示物品、宠物和坐骑](docs/screenshots/character-delivery.png)
 
@@ -49,3 +55,7 @@ docker compose run --rm --no-deps setup admin
 从本版原生目录选择神仙、天罡星、地煞星、上古妖王和 BOSS 等对象。指定线路、地图、数量及停留时间，可选发送谣言，确认后查看在场对象和位置。挑战及奖励走游戏原生规则。
 
 ![怪物生成页面，显示对象分类、地图、数量和停留时间](docs/screenshots/monster-spawn.png)
+
+## 维护者
+
+后续更新可复用 [构建与发布命令](release/README.md)。

@@ -1,0 +1,3 @@
+release/windows/*.cmd text eol=crlf
+release/windows/*.ps1 text eol=crlf
+release/windows/*.example text eol=crlf
