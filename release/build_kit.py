@@ -55,6 +55,8 @@ def refresh_backend(gm: Path, kit: Path) -> None:
         for path in sorted((gm / directory).glob(pattern)):
             if path.is_file() and not path.is_symlink():
                 shutil.copyfile(path, public / directory / path.name)
+    # 任务页的共用门派历史读取旧版规则表，独立 1.63 安装也需要它。
+    shutil.copyfile(gm / 'data/catalog/141-tasks.json', public / 'data/catalog/141-tasks.json')
     shutil.copyfile(gm / 'requirements.txt', public / 'requirements.txt')
 
 
