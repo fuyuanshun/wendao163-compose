@@ -168,6 +168,20 @@ def upload_with_retry(headers: dict, release_id: int, file: Path, expected: str,
             existing = next((asset for asset in release['assets'] if asset['name'] == file.name), None)
 
 
+def verify_download(asset: dict) -> None:
+    """短请求读取一字节，核对公开下载地址，不重复下载完整客户端。"""
+    name = asset['name']
+    for attempt in range(2):
+        try:
+            with urlopen(Request(asset['browser_download_url'], headers={'Range': 'bytes=0-0'}), timeout=25) as response:
+                if not response.read(1):
+                    raise OSError('响应没有下载数据')
+            return
+        except OSError as error:
+            if attempt == 1:
+                raise ValueError(f'公开下载未生效：{name}（{error}）') from None
+
+
 def publish(args: argparse.Namespace) -> None:
     """把所有附件写入同一草稿，核对链接后才删除此前的 Release。"""
     folder = args.assets.resolve()
@@ -220,13 +234,8 @@ def publish(args: argparse.Namespace) -> None:
         raise ValueError('公开 Release 附件与校验清单不一致')
     for name, row in public_assets.items():
         check_asset(row, folder / name, assets[name])
-        # 读一个字节，同时核对公开下载入口可达并避免重复下载整个客户端。
-        try:
-            with urlopen(Request(row['browser_download_url'], headers={'Range': 'bytes=0-0'}), timeout=90) as response:
-                if not response.read(1):
-                    raise ValueError(f'公开下载未生效：{name}')
-        except OSError as error:
-            raise ValueError(f'公开下载未生效：{name}（{error}）') from None
+    with ThreadPoolExecutor(max_workers=min(5, len(public_assets))) as pool:
+        list(pool.map(verify_download, public_assets.values()))
     if args.prune_older:
         for old in release_list:
             if old['id'] == release_id or old['created_at'] >= release['created_at']:
