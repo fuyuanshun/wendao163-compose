@@ -105,9 +105,13 @@ def check_asset(asset: dict, file: Path, expected: str) -> None:
 def upload_asset(headers: dict, release_id: int, file: Path, expected: str, existing: dict | None) -> None:
     """续传时复用已验证的附件，只有草稿中的占位文件才可清理重传。"""
     if existing and existing['state'] == 'uploaded':
-        check_asset(existing, file, expected)
-        print(f'已核对草稿中的 {file.name}', flush=True)
-        return
+        try:
+            check_asset(existing, file, expected)
+        except ValueError:
+            print(f'替换草稿中的旧候选 {file.name}', flush=True)
+        else:
+            print(f'已核对草稿中的 {file.name}', flush=True)
+            return
     if existing:
         request(headers, 'DELETE', f'{API}/releases/assets/{existing["id"]}')
     print(f'正在上传 {file.name} ({file.stat().st_size:,} 字节)', flush=True)
