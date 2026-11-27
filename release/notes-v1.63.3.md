@@ -1,7 +1,7 @@
 ## 下载
 
 - **`wendao163-compose.zip`** 包含 1.63 一线游戏服、MySQL 空服种子与 Web 管理台。解压后运行 `docker compose up -d --build`。
-- **`wendao163-windows.7z.001` 至 `.003`** 是可选的 Windows 1.63 客户端。下载全部分卷，放在一起，用 7-Zip 从 `.001` 解压，双击 `Start-Client.cmd`。
+- **`wendao163-windows.7z.*`** 是可选的 Windows 1.63 客户端。下载全部分卷，放在一起，用 7-Zip 从 `.001` 解压，双击 `Start-Client.cmd`。
 - **`SHA256SUMS`** 用于核对以上附件。
 
 ## 连接和功能

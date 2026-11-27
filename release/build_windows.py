@@ -77,7 +77,7 @@ def main() -> None:
         prepare_client(args.client.resolve(), stage)
         archive = output / 'wendao163-windows.7z'
         subprocess.run([args.seven_zip, 'a', '-t7z', '-m0=lzma2', '-mx=3', '-mmt=8', '-ms=off',
-                        '-v1400m', '-bsp0', str(archive), stage.name], cwd=stage.parent, check=True)
+                        '-v400m', '-bsp0', str(archive), stage.name], cwd=stage.parent, check=True)
         subprocess.run([args.seven_zip, 't', '-bsp0', str(archive) + '.001'], check=True)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'客户端打包失败：{error}\n')

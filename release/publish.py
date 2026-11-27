@@ -89,7 +89,9 @@ def checked_assets(folder: Path) -> dict[str, str]:
         if source.is_symlink() or not 0 < source.stat().st_size < 2**31 or digest(source) != line[:64]:
             raise ValueError(f'资产已变化或尺寸超限：{name}')
         found[name] = 'sha256:' + line[:64]
-    if 'wendao163-compose.zip' not in found or 'wendao163-windows.7z.001' not in found:
+    volumes = sorted(name for name in found if name.startswith('wendao163-windows.7z.'))
+    expected = [f'wendao163-windows.7z.{index:03d}' for index in range(1, len(volumes) + 1)]
+    if 'wendao163-compose.zip' not in found or not volumes or volumes != expected:
         raise ValueError('需包含组合 ZIP 和 Windows 客户端')
     found[sums.name] = 'sha256:' + digest(sums)
     return found
@@ -150,7 +152,7 @@ def publish(args: argparse.Namespace) -> None:
     if set(existing) - set(assets):
         raise ValueError('目标 Release 有清单外的附件，请先核对')
     if release['draft']:
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=min(10, len(assets))) as pool:
             jobs = [pool.submit(upload_asset, headers, release_id, folder / name, expected, existing.get(name))
                     for name, expected in assets.items()]
             for job in jobs:
