@@ -1,4 +1,5 @@
 """把已校验的组合包和客户端上传到 GitHub 草稿，核对后公开并可选清理旧 Release。"""
+from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from pathlib import Path
