@@ -212,13 +212,21 @@ def publish(args: argparse.Namespace) -> None:
         if branch_commit != target['target_commitish']:
             raise ValueError('上传期间 main 已变化，暂不公开 Release')
         release = request(headers, 'PATCH', url, {**target, 'draft': False, 'make_latest': 'true'})
-    if request(headers, 'GET', API + '/releases/latest')['id'] != release_id:
+    latest = request(headers, 'GET', API + '/releases/latest')
+    if latest['id'] != release_id:
         raise ValueError('GitHub 最新 Release 尚未指向新版本')
-    for name, row in uploaded.items():
+    public_assets = {asset['name']: asset for asset in latest['assets']}
+    if public_assets.keys() != assets.keys():
+        raise ValueError('公开 Release 附件与校验清单不一致')
+    for name, row in public_assets.items():
+        check_asset(row, folder / name, assets[name])
         # 读一个字节，同时核对公开下载入口可达并避免重复下载整个客户端。
-        with urlopen(Request(row['browser_download_url'], headers={'Range': 'bytes=0-0'}), timeout=90) as response:
-            if not response.read(1):
-                raise ValueError(f'公开下载未生效：{name}')
+        try:
+            with urlopen(Request(row['browser_download_url'], headers={'Range': 'bytes=0-0'}), timeout=90) as response:
+                if not response.read(1):
+                    raise ValueError(f'公开下载未生效：{name}')
+        except OSError as error:
+            raise ValueError(f'公开下载未生效：{name}（{error}）') from None
     if args.prune_older:
         for old in release_list:
             if old['id'] == release_id or old['created_at'] >= release['created_at']:
