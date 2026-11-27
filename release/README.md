@@ -17,7 +17,7 @@ python3 release/prepare.py \
 
 ## 上传和公开
 
-检查 README 和本次发布说明，提交并推送到 GitHub 的 `main`，然后运行下面的命令。先用 `--stage-only` 可只上传草稿。重复执行时会核对和复用已完整上传的附件。
+检查 README 和本次发布说明，提交并推送到 GitHub 的 `main`，然后运行下面的命令。先用 `--stage-only` 可只上传草稿。上传超时会单独重试该分卷，已核验的附件会在重试时复用。慢速网络可用 `--jobs 1` 逐卷上传。
 
 ```sh
 python3 release/publish.py --tag v1.63.3 --assets <本次工作目录>/dist --notes <本次发布说明.md>

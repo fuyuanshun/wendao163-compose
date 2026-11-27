@@ -1,5 +1,6 @@
 """把已校验的组合包和客户端上传到 GitHub 草稿，核对后公开并可选清理旧 Release。"""
 from __future__ import annotations
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from pathlib import Path
@@ -11,9 +12,15 @@ import json
 import os
 import re
 import subprocess
+import time
 
 REPO = 'fuyuanshun/wendao163-compose'
 API = f'https://api.github.com/repos/{REPO}'
+RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+
+
+class TemporaryUploadFailure(OSError):
+    """上传连接或 GitHub 暂时失败，可以重新检查草稿再重传该附件。"""
 
 
 def git(*args: str) -> str:
@@ -104,6 +111,18 @@ def check_asset(asset: dict, file: Path, expected: str) -> None:
         raise ValueError(f'GitHub 文件未通过核对：{file.name}')
 
 
+def chunks(file: Path) -> Iterator[bytes]:
+    """流式发送文件并按 64 MiB 输出进度，避免长时间无反馈。"""
+    chunk_size = 1024 * 1024
+    sent = 0
+    with file.open('rb') as stream:
+        for block in iter(lambda: stream.read(chunk_size), b''):
+            yield block
+            sent += len(block)
+            if sent % (64 * chunk_size) == 0:
+                print(f'{file.name} 已发送 {sent // chunk_size} MiB，等待 GitHub 核对', flush=True)
+
+
 def upload_asset(headers: dict, release_id: int, file: Path, expected: str, existing: dict | None) -> None:
     """续传时复用已验证的附件，只有草稿中的占位文件才可清理重传。"""
     if existing and existing['state'] == 'uploaded':
@@ -120,13 +139,33 @@ def upload_asset(headers: dict, release_id: int, file: Path, expected: str, exis
     url = f'https://uploads.github.com/repos/{REPO}/releases/{release_id}/assets?name={quote(file.name)}'
     head = {**headers, 'Content-Type': 'application/octet-stream', 'Content-Length': str(file.stat().st_size)}
     try:
-        with file.open('rb') as stream:
-            with urlopen(Request(url, data=stream, method='POST', headers=head), timeout=900) as response:
-                asset = json.load(response)
+        with urlopen(Request(url, data=chunks(file), method='POST', headers=head), timeout=900) as response:
+            asset = json.load(response)
     except HTTPError as error:
-        raise ValueError(f'{file.name} 上传返回 HTTP {error.code}') from None
+        message = f'{file.name} 上传返回 HTTP {error.code}'
+        if error.code in RETRYABLE_STATUS:
+            raise TemporaryUploadFailure(message) from None
+        raise ValueError(message) from None
     check_asset(asset, file, expected)
     print(f'{file.name} 上传及 SHA-256 核对通过', flush=True)
+
+
+def upload_with_retry(headers: dict, release_id: int, file: Path, expected: str, existing: dict | None) -> None:
+    """先重新查询 GitHub 的确认结果，重试时只发送尚未完成的分卷。"""
+    for attempt in range(3):
+        try:
+            upload_asset(headers, release_id, file, expected, existing)
+            return
+        except OSError as error:
+            if attempt == 2:
+                raise
+            reason = str(error) if isinstance(error, TemporaryUploadFailure) else type(error).__name__
+            print(f'{file.name} 传输可重试，正在重新核对草稿（{reason}）', flush=True)
+            time.sleep(3 * (attempt + 1))
+            release = request(headers, 'GET', f'{API}/releases/{release_id}')
+            if not release['draft']:
+                raise ValueError('重传时 Release 已被公开，请重新核对全部附件')
+            existing = next((asset for asset in release['assets'] if asset['name'] == file.name), None)
 
 
 def publish(args: argparse.Namespace) -> None:
@@ -152,8 +191,8 @@ def publish(args: argparse.Namespace) -> None:
     if set(existing) - set(assets):
         raise ValueError('目标 Release 有清单外的附件，请先核对')
     if release['draft']:
-        with ThreadPoolExecutor(max_workers=min(10, len(assets))) as pool:
-            jobs = [pool.submit(upload_asset, headers, release_id, folder / name, expected, existing.get(name))
+        with ThreadPoolExecutor(max_workers=min(args.jobs, len(assets))) as pool:
+            jobs = [pool.submit(upload_with_retry, headers, release_id, folder / name, expected, existing.get(name))
                     for name, expected in assets.items()]
             for job in jobs:
                 job.result()
@@ -197,6 +236,7 @@ def main() -> None:
     parser.add_argument('--tag', required=True)
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--notes', required=True, type=Path)
+    parser.add_argument('--jobs', type=int, choices=range(1, 11), default=4, help='并发上传数，网络慢时可设为 1')
     parser.add_argument('--stage-only', action='store_true')
     parser.add_argument('--prune-older', action='store_true')
     args = parser.parse_args()
